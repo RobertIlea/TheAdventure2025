@@ -5,6 +5,7 @@ namespace TheAdventure.Models;
 public class PlayerObject : RenderableGameObject
 {
     private const int _speed = 128; // pixels per second
+    public int Lives { get; private set; } = 3;
 
     public enum PlayerStateDirection
     {
@@ -22,6 +23,23 @@ public class PlayerObject : RenderableGameObject
         Move,
         Attack,
         GameOver
+    }
+
+    // Lose a heart whenever the player hits a bomb
+    public void LoseLife()
+    {
+        Lives--;
+        if (Lives == 0)
+        {
+            GameOver();
+        }
+    }
+
+    // Player will be respawned after death
+    public void Respawn(int x, int y)
+    {
+        Position = (x, y);
+        SetState(PlayerState.Idle, PlayerStateDirection.Down);
     }
 
     public (PlayerState State, PlayerStateDirection Direction) State { get; private set; }

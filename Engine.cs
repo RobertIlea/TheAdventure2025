@@ -22,6 +22,8 @@ public class Engine
 
     private DateTimeOffset _lastUpdate = DateTimeOffset.Now;
 
+    private bool _hasRespawned = false;
+    private bool _hasPrintedGameOver = false;
     public Engine(GameRenderer renderer, Input input)
     {
         _renderer = renderer;
@@ -107,6 +109,19 @@ public class Engine
         {
             AddBomb(_player.Position.X, _player.Position.Y, false);
         }
+
+        // Respawn the player 3 seconds after death
+        if(_player.State.State == PlayerObject.PlayerState.GameOver && (DateTimeOffset.Now -  _lastUpdate).TotalSeconds > 3)
+        {
+            _player.Respawn(100, 100);
+            _hasRespawned = true;
+        }
+
+        if (_player.State.State != PlayerObject.PlayerState.GameOver)
+        {
+            _hasRespawned = false;
+        }
+
     }
 
     public void RenderFrame()
@@ -120,14 +135,25 @@ public class Engine
         RenderTerrain();
         RenderAllObjects();
 
+        // Gray screen when the player dies
         if(_player is not null && _player.State.State == PlayerObject.PlayerState.GameOver)
         {
             _renderer.SetDrawColor(0, 0, 0, 150);
             _renderer.RenderFillRectFullScreen();
 
+            // Console message
+            if (!_hasPrintedGameOver)
+            {
+                Console.WriteLine("GAME OVER!");
+                _hasPrintedGameOver = true;
+            }
+        }
+        else
+        {
+            _hasPrintedGameOver = false;
         }
 
-        _renderer.PresentFrame();
+            _renderer.PresentFrame();
     }
 
     public void RenderAllObjects()
@@ -156,7 +182,13 @@ public class Engine
             var deltaY = Math.Abs(_player.Position.Y - tempGameObject.Position.Y);
             if (deltaX < 32 && deltaY < 32)
             {
-                _player.GameOver();
+                // Player will lose a life whenever hits a bomb
+                _player.LoseLife();
+                if(_player.Lives > 0)
+                {
+                    Console.WriteLine($"[Player] Lives left: {_player.Lives}");
+
+                }
             }
         }
 

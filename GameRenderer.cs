@@ -111,6 +111,7 @@ public unsafe class GameRenderer
         _sdl.RenderPresent(_renderer);
     }
 
+    // Rectangle for the entire screen
     public void RenderFillRectFullScreen()
     {
         var rect = new Rectangle<int>(0,0,_camera.Width, _camera.Height);
