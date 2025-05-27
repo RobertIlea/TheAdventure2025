@@ -8,6 +8,10 @@ public unsafe class Input
 
     public EventHandler<(int x, int y)>? OnMouseClick;
 
+    private HashSet<KeyCode> _pressedKeys = new();
+    private HashSet<KeyCode> _justPressedKeys = new();
+
+
     public Input(Sdl sdl)
     {
         _sdl = sdl;
@@ -51,6 +55,7 @@ public unsafe class Input
 
     public bool ProcessInput()
     {
+        _justPressedKeys.Clear();
         Event ev = new Event();
         while (_sdl.PollEvent(ref ev) != 0)
         {
@@ -157,16 +162,29 @@ public unsafe class Input
 
                 case (uint)EventType.Keyup:
                 {
+                    var keyCode = (KeyCode)ev.Key.Keysym.Scancode;
+                    _pressedKeys.Remove(keyCode);
                     break;
                 }
 
                 case (uint)EventType.Keydown:
                 {
+                    var keyCode = (KeyCode)ev.Key.Keysym.Scancode;
+                    if (!_pressedKeys.Contains(keyCode))
+                    {
+                        _justPressedKeys.Add(keyCode);
+                    }
+                    _pressedKeys.Add(keyCode);
                     break;
                 }
             }
         }
 
         return false;
+    }
+
+    public bool IsKeyPressed(KeyCode r)
+    {
+        return _justPressedKeys.Contains(r);
     }
 }

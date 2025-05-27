@@ -125,4 +125,20 @@ public unsafe class GameRenderer
             _sdl.RenderCopy(_renderer, (Texture*)texture, in src, in dst);
         }
     }
+
+    public (int Width, int Height) ScreenSize => _window.Size;
+
+    public void GetTextureSize(int textureId, out int width, out int height)
+    {
+        if (_textureData.TryGetValue(textureId, out var data))
+        {
+            width = data.Width;
+            height = data.Height;
+        }
+        else
+        {
+            width = height = 0;
+        }
+    }
+
 }

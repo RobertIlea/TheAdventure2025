@@ -1,12 +1,18 @@
 using System.Reflection;
 using System.Text.Json;
 using Silk.NET.Maths;
+using Silk.NET.SDL;
 using TheAdventure.Models;
 using TheAdventure.Models.Data;
 using TheAdventure.Scripting;
 
 namespace TheAdventure;
-
+public enum GameState
+{
+    Start,
+    Running,
+    GameOver
+}
 public class Engine
 {
     private readonly GameRenderer _renderer;
@@ -25,6 +31,8 @@ public class Engine
     private bool _hasRespawned = false;
     private bool _hasPrintedGameOver = false;
     private int _heartTextureId = -1;
+    private int _gameOverTextureId = -1;
+    private int _startScreenTextureId = -1;
     public Engine(GameRenderer renderer, Input input)
     {
         _renderer = renderer;
@@ -33,11 +41,15 @@ public class Engine
         _input.OnMouseClick += (_, coords) => AddBomb(coords.x, coords.y);
     }
 
+    private GameState _gameState = GameState.Start;
+   
+
     public void SetupWorld()
     {
         _player = new(SpriteSheet.Load(_renderer, "Player.json", "Assets"), 100, 100);
-        _heartTextureId = _renderer.LoadTexture("Assets/heart.png", out _);
-        Console.WriteLine($"Heart texture ID = {_heartTextureId}");
+        _heartTextureId = _renderer.LoadTexture("Assets/heart.png", out _); // heart texture
+        _gameOverTextureId = _renderer.LoadTexture("Assets/gameover.jpg", out _); // game over texture
+        _startScreenTextureId = _renderer.LoadTexture("Assets/start.png", out _); // start texture
 
         var levelContent = File.ReadAllText(Path.Combine("Assets", "terrain.tmj"));
         var level = JsonSerializer.Deserialize<Level>(levelContent);
@@ -87,6 +99,15 @@ public class Engine
         var currentTime = DateTimeOffset.Now;
         var msSinceLastFrame = (currentTime - _lastUpdate).TotalMilliseconds;
         _lastUpdate = currentTime;
+
+        if(_gameState == GameState.Start)
+        {
+            if(_input.IsKeyPressed(KeyCode.Return))
+            {
+                _gameState = GameState.Running;
+            }
+            return;
+        }
 
         if (_player == null)
         {
@@ -148,11 +169,59 @@ public class Engine
             }
         }
 
-        // Gray screen when the player dies
+        if(_gameState == GameState.Start)
+        {
+            _renderer.SetDrawColor(0, 0, 0, 255);
+            _renderer.RenderFillRectFullScreen();
+
+            if (_startScreenTextureId != -1)
+            {
+                var (screenW, screenH) = _renderer.ScreenSize;
+
+                var scale = 0.5f;
+                _renderer.GetTextureSize(_startScreenTextureId, out int texWidth, out int texHeight);
+                var dstW = (int)(texWidth * scale);
+                var dstH = (int)(texHeight * scale);
+                var dstX = (screenW - dstW) / 2;
+                var dstY = (screenH - dstH) / 2;
+
+                _renderer.RenderTextureScreenSpace(
+                    _startScreenTextureId,
+                    new Rectangle<int>(0, 0, texWidth, texHeight),
+                    new Rectangle<int>(dstX, dstY, dstW, dstH)     
+                );
+
+            }
+
+            _renderer.PresentFrame();
+            return;
+        }
+
+
+        // Gray screen and GameOver message when the player dies
         if(_player is not null && _player.State.State == PlayerObject.PlayerState.GameOver)
         {
             _renderer.SetDrawColor(0, 0, 0, 150);
             _renderer.RenderFillRectFullScreen();
+
+            if (_gameOverTextureId != -1)
+            {
+                _renderer.GetTextureSize(_gameOverTextureId, out int texW, out int texH);
+                var scale = 0.6f;
+                var dstW = (int)(texW * scale);
+                var dstH = (int)(texH * scale);
+
+                var (screenW, screenH) = _renderer.ScreenSize;
+                var dstX = (screenW - dstW) / 2;
+                var dstY = (screenH - dstH) / 2;
+
+                _renderer.RenderTextureScreenSpace(
+                    _gameOverTextureId,
+                    new Rectangle<int>(0, 0, texW, texH),
+                    new Rectangle<int>(dstX, dstY, dstW, dstH)
+                );
+
+            }
 
             // Console message
             if (!_hasPrintedGameOver)
@@ -166,7 +235,7 @@ public class Engine
             _hasPrintedGameOver = false;
         }
 
-            _renderer.PresentFrame();
+        _renderer.PresentFrame();
     }
 
     public void RenderAllObjects()
