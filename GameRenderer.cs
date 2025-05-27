@@ -110,4 +110,10 @@ public unsafe class GameRenderer
     {
         _sdl.RenderPresent(_renderer);
     }
+
+    public void RenderFillRectFullScreen()
+    {
+        var rect = new Rectangle<int>(0,0,_camera.Width, _camera.Height);
+        _sdl.RenderFillRect(_renderer, in rect);
+    }
 }

@@ -120,6 +120,13 @@ public class Engine
         RenderTerrain();
         RenderAllObjects();
 
+        if(_player is not null && _player.State.State == PlayerObject.PlayerState.GameOver)
+        {
+            _renderer.SetDrawColor(0, 0, 0, 150);
+            _renderer.RenderFillRectFullScreen();
+
+        }
+
         _renderer.PresentFrame();
     }
 
