@@ -117,4 +117,12 @@ public unsafe class GameRenderer
         var rect = new Rectangle<int>(0,0,_camera.Width, _camera.Height);
         _sdl.RenderFillRect(_renderer, in rect);
     }
+
+    public void RenderTextureScreenSpace(int textureId, Rectangle<int> src, Rectangle<int> dst)
+    {
+        if(_texturePointers.TryGetValue(textureId, out var texture))
+        {
+            _sdl.RenderCopy(_renderer, (Texture*)texture, in src, in dst);
+        }
+    }
 }

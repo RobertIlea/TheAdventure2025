@@ -24,6 +24,7 @@ public class Engine
 
     private bool _hasRespawned = false;
     private bool _hasPrintedGameOver = false;
+    private int _heartTextureId = -1;
     public Engine(GameRenderer renderer, Input input)
     {
         _renderer = renderer;
@@ -35,6 +36,8 @@ public class Engine
     public void SetupWorld()
     {
         _player = new(SpriteSheet.Load(_renderer, "Player.json", "Assets"), 100, 100);
+        _heartTextureId = _renderer.LoadTexture("Assets/heart.png", out _);
+        Console.WriteLine($"Heart texture ID = {_heartTextureId}");
 
         var levelContent = File.ReadAllText(Path.Combine("Assets", "terrain.tmj"));
         var level = JsonSerializer.Deserialize<Level>(levelContent);
@@ -135,6 +138,16 @@ public class Engine
         RenderTerrain();
         RenderAllObjects();
 
+        if(_player is not null && _heartTextureId != -1)
+        {
+            for(int i = 0; i < _player.Lives; i++)
+            {
+                var dst = new Rectangle<int>(10 + i * 60, 10, 48, 48);
+                var src = new Rectangle<int>(0, 0, 347, 347);
+                _renderer.RenderTextureScreenSpace(_heartTextureId, src, dst);
+            }
+        }
+
         // Gray screen when the player dies
         if(_player is not null && _player.State.State == PlayerObject.PlayerState.GameOver)
         {
@@ -187,7 +200,6 @@ public class Engine
                 if(_player.Lives > 0)
                 {
                     Console.WriteLine($"[Player] Lives left: {_player.Lives}");
-
                 }
             }
         }
