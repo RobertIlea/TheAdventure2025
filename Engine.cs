@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Text.Json;
 using Silk.NET.Maths;
 using Silk.NET.SDL;
@@ -11,7 +11,8 @@ public enum GameState
 {
     Start,
     Running,
-    GameOver
+    GameOver,
+    Win
 }
 public class Engine
 {
@@ -22,6 +23,9 @@ public class Engine
     private readonly Dictionary<int, GameObject> _gameObjects = new();
     private readonly Dictionary<string, TileSet> _loadedTileSets = new();
     private readonly Dictionary<int, Tile> _tileIdMap = new();
+    private DateTimeOffset _lastEnemyCollision = DateTimeOffset.MinValue;
+    private const double EnemyHitCooldownSeconds = 1.0;
+
 
     private Level _currentLevel = new();
     private PlayerObject? _player;
@@ -33,6 +37,10 @@ public class Engine
     private int _heartTextureId = -1;
     private int _gameOverTextureId = -1;
     private int _startScreenTextureId = -1;
+    private int _winTextureId = -1;
+
+    private readonly List<EnemyObject> _enemies = new();
+    private int _score = 0;
     public Engine(GameRenderer renderer, Input input)
     {
         _renderer = renderer;
@@ -50,9 +58,21 @@ public class Engine
         _heartTextureId = _renderer.LoadTexture("Assets/heart.png", out _); // heart texture
         _gameOverTextureId = _renderer.LoadTexture("Assets/gameover.jpg", out _); // game over texture
         _startScreenTextureId = _renderer.LoadTexture("Assets/start.png", out _); // start texture
+        _winTextureId = _renderer.LoadTexture("Assets/won.jpg", out _); // win texture
+
+
+        var enemySheet = SpriteSheet.Load(_renderer, "Enemy.json", "Assets");
+        var random = new Random();
+        for (int i = 0; i < 100; i++)
+        {
+            int x = random.Next(100, 800);
+            int y = random.Next(100, 600); 
+            _enemies.Add(new EnemyObject(enemySheet, x, y));
+        }
 
         var levelContent = File.ReadAllText(Path.Combine("Assets", "terrain.tmj"));
         var level = JsonSerializer.Deserialize<Level>(levelContent);
+
         if (level == null)
         {
             throw new Exception("Failed to load level");
@@ -100,11 +120,17 @@ public class Engine
         var msSinceLastFrame = (currentTime - _lastUpdate).TotalMilliseconds;
         _lastUpdate = currentTime;
 
-        if(_gameState == GameState.Start)
+        if (_gameState == GameState.Win)
         {
-            if(_input.IsKeyPressed(KeyCode.Return))
+            return;
+        }
+
+        if (_gameState == GameState.Start)
+        {
+            if (_input.IsKeyPressed(KeyCode.Return))
             {
                 _gameState = GameState.Running;
+                Console.WriteLine("Kill all the 100 enemies!");
             }
             return;
         }
@@ -144,6 +170,46 @@ public class Engine
         if (_player.State.State != PlayerObject.PlayerState.GameOver)
         {
             _hasRespawned = false;
+        }
+
+        foreach (var enemy in _enemies.ToList())
+        {
+            enemy.Update(msSinceLastFrame, _player.Position);
+
+            if (!enemy.IsAlive)
+            {
+                continue;
+            }
+
+            var dx = Math.Abs(_player!.Position.X - enemy.Position.X);
+            var dy = Math.Abs(_player.Position.Y - enemy.Position.Y);
+
+            if (dx < 32 && dy < 32)
+            {
+                var now = DateTimeOffset.Now;
+                if ((now - _lastEnemyCollision).TotalSeconds > EnemyHitCooldownSeconds)
+                {
+                    _player.LoseLife();
+                    _lastEnemyCollision = now;
+                    if(_player.Lives > 0)
+                    {
+                        Console.WriteLine($"[Player] Lives left: {_player.Lives}");
+                    }
+                }
+            }
+
+            
+            if (_player.State.State == PlayerObject.PlayerState.Attack && dx < 48 && dy < 48)
+            {
+                enemy.Kill();
+                _score++;
+                Console.WriteLine($"Scor: {_score}");
+
+                if(_score == 100)
+                {
+                    _gameState = GameState.Win;
+                }
+            }
         }
 
     }
@@ -235,6 +301,29 @@ public class Engine
             _hasPrintedGameOver = false;
         }
 
+        
+        if (_score >= 100 && _winTextureId != -1)
+        {
+            _renderer.SetDrawColor(0, 0, 0, 150);
+            _renderer.RenderFillRectFullScreen();
+
+            _renderer.GetTextureSize(_winTextureId, out int texW, out int texH);
+            var scale = 0.6f;
+            var dstW = (int)(texW * scale);
+            var dstH = (int)(texH * scale);
+
+            var (screenW, screenH) = _renderer.ScreenSize;
+            var dstX = (screenW - dstW) / 2;
+            var dstY = (screenH - dstH) / 2;
+
+            _renderer.RenderTextureScreenSpace(
+                _winTextureId,
+                new Rectangle<int>(0, 0, texW, texH),
+                new Rectangle<int>(dstX, dstY, dstW, dstH)
+            );
+        }
+
+
         _renderer.PresentFrame();
     }
 
@@ -274,6 +363,12 @@ public class Engine
         }
 
         _player?.Render(_renderer);
+
+        foreach (var enemy in _enemies)
+        {
+            if (!enemy.IsAlive) continue;
+            enemy.Render(_renderer);
+        }
     }
 
     public void RenderTerrain()
